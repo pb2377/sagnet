@@ -7,6 +7,7 @@ import numpy as np
 from collections import OrderedDict
 
 import torch
+import pandas as pd
 import torch.optim as optim
 from torchvision import transforms
 
@@ -17,6 +18,9 @@ from modules.utils import *
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch SagNet')
+
+parser.add_argument('--reps', type=int, default=5,
+                    help='number of times to repeat each target/source domain split.')
 
 # dataset
 parser.add_argument('--dataset-dir', type=str, default='dataset',
@@ -95,7 +99,7 @@ parser.add_argument('-g', '--gpu-id', type=str, default='0',
                     help='gpu id')
 
 
-def main(args):
+def main(args, rep_number):
     global status
 
     # Set gpus
@@ -111,8 +115,8 @@ def main(args):
         args.targets = [d for d in all_domains if d not in args.sources]
 
     # Set save dir
-    save_dir = os.path.join(args.save_dir, args.dataset, args.method, ','.join(args.sources))
-    print('Save directory: {}'.format(save_dir))
+    save_dir = os.path.join(args.save_dir, args.dataset, args.method, '-'.join(args.sources + [str(rep_number)]))
+    # if rep == 0:
     os.makedirs(save_dir, exist_ok=True)
 
     # Set Logger
@@ -120,9 +124,11 @@ def main(args):
     sys.stdout = Logger(log_path)
 
     # Print arguments
-    print('\nArguments')
-    for arg in vars(args):
-        print(' - {}: {}'.format(arg, getattr(args, arg)))
+    if rep == 0:
+        print('\nArguments')
+        for arg in vars(args):
+            print(' - {}: {}'.format(arg, getattr(args, arg)))
+    print('Save directory: {}'.format(save_dir))
 
     # Init seed
     if args.seed >= 0:
@@ -130,15 +136,15 @@ def main(args):
         torch.cuda.manual_seed(args.seed)
 
     # Initialzie loader
-    print('\nInitialize loaders...')
+    # print('\nInitialize loaders...')
     init_loader()
 
     # Initialize model
-    print('\nInitialize model...')
+    # print('\nInitialize model...')
     init_model()
 
     # Initialize optimizer
-    print('\nInitialize optimizers...')
+    # print('\nInitialize optimizers...')
     init_optimizer()
     
     # Initialize status
@@ -156,6 +162,7 @@ def main(args):
     # Main loop
     print('\nStart training...')
     results = []
+    performance_history = {}
     for step in range(args.iterations):
         train(step)
 
@@ -163,22 +170,43 @@ def main(args):
             save_model(model, save_dir, 'latest')
             
             for i, domain in enumerate(args.sources):
-                print('Validation: {}'.format(domain))
+                # print('Validation: {}'.format(domain))
                 status['val_acc'][domain] = test(loader_vals[i])
             for i, domain in enumerate(args.targets):
-                print('Test: {}'.format(domain))
+                # print('Test: {}'.format(domain))
                 status['test_acc'][domain] = test(loader_tgts[i])
-            
+
             status['mean_val_acc'] = sum(status['val_acc'].values()) / len(status['val_acc'])
             status['mean_test_acc'] = sum(status['test_acc'].values()) / len(status['test_acc'])
-                    
-            print('Val accuracy: {:.5f} ({})'.format(status['mean_val_acc'], 
-                    ', '.join(['{}: {:.5f}'.format(k, v) for k, v in status['val_acc'].items()])))
-            print('Test accuracy: {:.5f} ({})'.format(status['mean_test_acc'], 
-                    ', '.join(['{}: {:.5f}'.format(k, v) for k, v in status['test_acc'].items()])))
-            
+
+            performance_history = update_performance_hist(performance_history, status)
+            # print('Val accuracy: {:.5f} ({})'.format(status['mean_val_acc'],
+            #         ', '.join(['{}: {:.5f}'.format(k, v) for k, v in status['val_acc'].items()])))
+            # print('Test accuracy: {:.5f} ({})'.format(status['mean_test_acc'],
+            #         ', '.join(['{}: {:.5f}'.format(k, v) for k, v in status['test_acc'].items()])))
+
             results.append(copy.deepcopy(status))
             save_result(results, save_dir)
+
+    performance_history = pd.DataFrame(performance_history)
+
+    best_test = np.max(performance_history['mean_test_acc'])
+    best_crossval_idx = np.argmax(performance_history['mean_val_acc'])
+    best_crossval_test = performance_history['mean_test_acc'][best_crossval_idx]
+    performance_history.to_csv(os.path.join(save_dir, 'performance_history.csv'))
+    return best_test, best_crossval_test
+
+
+def update_performance_hist(performance_history, status, mk=''):
+    for k, v in status.items():
+        if isinstance(v, OrderedDict):
+            performance_history = update_performance_hist(performance_history, v, mk=k + '_')
+        else:
+            try:
+                performance_history[mk+k].append(v)
+            except KeyError:
+                performance_history[mk+k] = [v]
+    return performance_history
 
 
 def init_loader():
@@ -206,24 +234,25 @@ def init_loader():
     # Set datasets
     if args.dataset == 'pacs':
         from data.pacs import PACS
-        image_dir = os.path.join(args.dataset_dir, args.dataset, 'images', 'kfold')
+        # image_dir = os.path.join(args.dataset_dir, args.dataset, 'images', 'kfold')
+        image_dir = '../Datasets/PACS/Raw-images/kfold'
         split_dir = os.path.join(args.dataset_dir, args.dataset, 'splits')
      
-        print('--- Training ---')
+        # print('--- Training ---')
         dataset_srcs = [PACS(image_dir,
                              split_dir,
                              domain=domain,
                              split='train',
                              transform=train_transform)
                         for domain in args.sources]
-        print('--- Validation ---')
+        # print('--- Validation ---')
         dataset_vals = [PACS(image_dir,
                              split_dir,
                              domain=domain,
                              split='crossval',
                              transform=test_transform)
                         for domain in args.sources]
-        print('--- Test ---')
+        # print('--- Test ---')
         dataset_tgts = [PACS(image_dir,
                              split_dir,
                              domain=domain,
@@ -268,7 +297,7 @@ def init_model():
                        sagnet=args.sagnet,
                        style_stage=args.style_stage)
 
-    print(model)
+    # print(model)
     model = torch.nn.DataParallel(model).cuda()
 
 
@@ -314,11 +343,6 @@ def train(step):
 
     ## Initialize iteration
     model.train()
-    
-    scheduler.step()
-    if args.sagnet:
-        scheduler_style.step()
-        scheduler_adv.step()
 
     ## Load data
     tic = time.time()
@@ -370,6 +394,11 @@ def train(step):
 
     time_net = time.time() - tic
 
+    scheduler.step()
+    if args.sagnet:
+        scheduler_style.step()
+        scheduler_adv.step()
+
     ## Update status
     status['iteration'] = step + 1
     status['lr'] = optimizer.param_groups[0]['lr']
@@ -381,11 +410,11 @@ def train(step):
         status['src']['l_adv'].update(loss_adv.item())
     status['src']['acc'].update(compute_accuracy(y, label))
 
-    ## Log result
-    if step % args.log_interval == 0:
-        print('[{}/{} ({:.0f}%)] lr {:.5f}, {}'.format(
-            step, args.iterations, 100. * step / args.iterations, status['lr'],
-            ', '.join(['{} {}'.format(k, v) for k, v in status['src'].items()])))
+    # ## Log result
+    # if step % args.log_interval == 0:
+    #     print('[{}/{} ({:.0f}%)] lr {:.5f}, {}'.format(
+    #         step, args.iterations, 100. * step / args.iterations, status['lr'],
+    #         ', '.join(['{} {}'.format(k, v) for k, v in status['src'].items()])))
     
 
 def test(loader_tgt):
@@ -401,9 +430,9 @@ def test(loader_tgt):
         labels += [label.data.cpu().numpy()]
 
         # log
-        if args.log_test_interval != -1 and batch_idx % args.log_test_interval == 0:
-            print('[{}/{} ({:.0f}%)]'.format(
-                batch_idx, len(loader_tgt), 100. * batch_idx / len(loader_tgt)))
+        # if args.log_test_interval != -1 and batch_idx % args.log_test_interval == 0:
+        #     print('[{}/{} ({:.0f}%)]'.format(
+        #         batch_idx, len(loader_tgt), 100. * batch_idx / len(loader_tgt)))
 
     # Aggregate result
     preds = np.concatenate(preds, axis=0)
@@ -414,4 +443,17 @@ def test(loader_tgt):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    main(args)
+
+    best_test = []
+    best_crossval_test = []
+    for rep in range(args.reps):
+        test_acc, crossval_test = main(args, rep)
+        best_test.append(test_acc)
+        best_crossval_test.append(crossval_test)
+
+    print(best_test)
+    print(best_crossval_test)
+
+    print('{} ({} Repeats):'.format(args.targets, args.reps))
+    print('Average best test accuracy = {:.3}'.format(np.mean(best_test)))
+    print('Average test accuracy of best cross-val models = {:.3}'.format(np.mean(best_crossval_test)))

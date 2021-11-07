@@ -34,5 +34,5 @@ class PACS(Dataset):
         self.samples = np.genfromtxt(split_path, dtype=str).tolist()
         self.samples = [(img, int(lbl) - 1) for img, lbl in self.samples]
         
-        print('domain: {:14s} split: {:10s} n_images: {:<6d}'
-                .format(self.domain, self.split, len(self.samples)))
+        # print('domain: {:14s} split: {:10s} n_images: {:<6d}'
+        #         .format(self.domain, self.split, len(self.samples)))

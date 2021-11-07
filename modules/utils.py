@@ -65,6 +65,6 @@ def save_result(result, save_dir):
 def save_model(model, save_dir, postfix):
     model_path = os.path.join(save_dir, 'checkpoint_{}.pth'.format(postfix))
     model.cpu()
-    print('save model to {}'.format(model_path))
+    # print('save model to {}'.format(model_path))
     torch.save(model.state_dict(), model_path)
     model.cuda()

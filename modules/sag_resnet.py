@@ -228,7 +228,7 @@ def sag_resnet(depth, pretrained=False, **kwargs):
 
     if pretrained:
         model_url = model_urls['resnet' + str(depth)]
-        print('load a pretrained model from {}'.format(model_url))
+        # print('load a pretrained model from {}'.format(model_url))
     
         states = model_zoo.load_url(model_url)
         states.pop('fc.weight')
