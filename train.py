@@ -128,6 +128,7 @@ def main(args, rep_number):
         print('\nArguments')
         for arg in vars(args):
             print(' - {}: {}'.format(arg, getattr(args, arg)))
+        print()
     print('Save directory: {}'.format(save_dir))
 
     # Init seed
@@ -160,7 +161,7 @@ def main(args, rep_number):
     ])
 
     # Main loop
-    print('\nStart training...')
+    # print('\nStart training...')
     results = []
     performance_history = {}
     for step in range(args.iterations):
@@ -451,9 +452,10 @@ if __name__ == '__main__':
         best_test.append(test_acc)
         best_crossval_test.append(crossval_test)
 
-    print(best_test)
-    print(best_crossval_test)
+    print('\nTargets={} ({} Repeats):'.format(args.targets, args.reps))
 
-    print('{} ({} Repeats):'.format(args.targets, args.reps))
-    print('Average best test accuracy = {:.3}'.format(np.mean(best_test)))
-    print('Average test accuracy of best cross-val models = {:.3}'.format(np.mean(best_crossval_test)))
+    print('Best Test Accuracy each rep:\n\t', best_test)
+    print('Average = {:.3}'.format(np.mean(best_test)))
+
+    print('\nAccuracy of best cross-val model each rep (usual PACS model selection):\n\t', best_crossval_test)
+    print('Average = {:.3}'.format(np.mean(best_crossval_test)))
