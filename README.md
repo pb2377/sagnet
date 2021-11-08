@@ -35,8 +35,6 @@ Save directory: checkpoint/pacs/sagnet/cartoon-sketch-photo-4
 
 Targets=['art_painting'] (5 Repeats):
 
-Final Test Accuracy = 0.810
-
 Best Test Accuracy each rep:
 	 [0.82275390625, 0.830078125, 0.8310546875, 0.8427734375, 0.8359375]
 Average = 0.833
