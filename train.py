@@ -195,7 +195,7 @@ def main(args, rep_number):
     best_crossval_idx = np.argmax(performance_history['mean_val_acc'])
     best_crossval_test = performance_history['mean_test_acc'][best_crossval_idx]
     performance_history.to_csv(os.path.join(save_dir, 'performance_history.csv'))
-    final_test = performance_history['mean_test_acc'][-1]
+    final_test = performance_history['mean_test_acc'].tolist()[-1]
     return best_test, best_crossval_test, final_test
 
 
@@ -448,15 +448,17 @@ if __name__ == '__main__':
 
     best_test = []
     best_crossval_test = []
+    final_test = []
     for rep in range(args.reps):
-        test_acc, crossval_test, final_test = main(args, rep)
+        test_acc, crossval_test, final_ = main(args, rep)
         best_test.append(test_acc)
         best_crossval_test.append(crossval_test)
+        final_test.append(final_)
 
     print('\nTargets={} ({} Repeats):'.format(args.targets, args.reps))
-    print('Final Test Accuracy = {:.3f}'.format(final_test))
+    print('\nFinal Test Accuracy = {:.3f}'.format(np.mean(final_test)))
 
-    print('Best Test Accuracy each rep:\n\t', best_test)
+    print('\nBest Test Accuracy each rep:\n\t', best_test)
     print('Average = {:.3}'.format(np.mean(best_test)))
 
     print('\nAccuracy of best cross-val model each rep (usual PACS model selection):\n\t', best_crossval_test)
